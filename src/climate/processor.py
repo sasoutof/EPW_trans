@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 
 from src.constants import AVAILABLE_VARIABLES, TIMEZONE
-from src.era5_downloader import clean_name
+from src.climate.era5_downloader import clean_name
 
 
 def saturation_vapour_pressure(temp_c):

@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from src.constants import (
     PROJECT_NAME,
     DATASET,
@@ -6,10 +8,14 @@ from src.constants import (
     AVAILABLE_VARIABLES,
 )
 
-from src.input_cli import get_user_input
-from src.era5_downloader import clean_name, download_era5_timeseries
-from src.processor import process_era5_csv
-from src.checks import quality_check
+from src.ui.input_cli import get_user_input
+from src.climate.era5_downloader import clean_name, download_era5_timeseries
+from src.climate.processor import process_era5_csv
+from src.climate.checks import quality_check
+
+from src.epw.metadata import EPWMetadata
+from src.epw.weather_data import WeatherData
+from src.epw.writer import write_epw
 
 
 def save_metadata(
@@ -57,6 +63,44 @@ def save_metadata(
     print(f"Metadatos guardados: {metadata_file}")
 
 
+def ask_generate_epw():
+    print("\n======================================")
+    print("GENERACIÓN DE ARCHIVO EPW")
+    print("======================================")
+    answer = input("¿Quieres generar también archivo EPW? (s/n): ").strip().lower()
+    return answer == "s"
+
+
+def generate_epw_from_csv(
+    csv_file,
+    point_name,
+    lat,
+    lon,
+    altitude,
+    year,
+):
+    output_dir = Path("data") / "output" / clean_name(point_name)
+    output_file = output_dir / f"{clean_name(point_name)}_{year}.epw"
+
+    metadata = EPWMetadata(
+        city=point_name,
+        country="ESP",
+        source="ERA5",
+        latitude=lat,
+        longitude=lon,
+        timezone=1.0,
+        elevation=altitude if altitude is not None else 0.0,
+    )
+
+    weather_data = WeatherData.from_csv(csv_file, metadata)
+
+    write_epw(
+        weather_data=weather_data,
+        output_path=output_file,
+        strict=False,
+    )
+
+
 def main():
     (
         point_name,
@@ -87,6 +131,8 @@ def main():
         out_dir=out_dir,
     )
 
+    generate_epw = ask_generate_epw()
+
     for year in years:
         raw_csv = download_era5_timeseries(
             point_name=point_name,
@@ -106,5 +152,15 @@ def main():
         )
 
         quality_check(final_csv, year)
+
+        if generate_epw:
+            generate_epw_from_csv(
+                csv_file=final_csv,
+                point_name=point_name,
+                lat=lat,
+                lon=lon,
+                altitude=altitude,
+                year=year,
+            )
 
     print("\nProceso finalizado correctamente.")
